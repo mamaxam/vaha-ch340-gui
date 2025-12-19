@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import messagebox
 import serial
@@ -24,7 +25,9 @@ def find_ch340():
 class App:
     def __init__(self, root):
         self.root = root
-        root.title("Váha – rychlý přehled")
+
+        compile_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(__file__)))
+        root.title(f"Váha – rychlý přehled (kompilace: {compile_time})")
         root.geometry("520x220")
 
         self.ser = None
@@ -91,7 +94,11 @@ class App:
                         self.root.after(0, self.consume_and_update)
                 else:
                     time.sleep(0.01)  # lehké uspání, ať to nežere CPU
-            except:
+            except serial.SerialException as exc:
+                # Plánuj zpracování na hlavní thread, kde je bezpečné manipulovat s GUI
+                self.root.after(0, lambda e=exc: self.handle_serial_error(e))
+                break
+            except Exception:
                 time.sleep(0.02)
 
     # --- vezmi buffer, naparsuj a update GUI (při každém příjmu dat) ---
@@ -151,6 +158,16 @@ class App:
             self.v_nw.set(self.last_nw)
             self.v_uw.set(self.last_uw)
             self.v_pcs.set(self.last_pcs)
+
+    def handle_serial_error(self, exc: Exception):
+        if not self.running:
+            return
+
+        self.running = False
+        self.status.set("Status: chyba komunikace")
+        self.portinfo.set("Port: -")
+        messagebox.showerror("Chyba komunikace", f"Nastala chyba při čtení z portu.\n\n{exc}")
+        self.disconnect()
 
     def connect(self):
         if self.ser:
