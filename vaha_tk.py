@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import messagebox
 import serial
@@ -24,7 +25,14 @@ def find_ch340():
 class App:
     def __init__(self, root):
         self.root = root
-        root.title("Váha – rychlý přehled")
+
+        compiled_path = globals().get("__cached__") or __file__
+        compile_time = time.strftime(
+            "%Y-%m-%d %H:%M:%S",
+            time.localtime(os.path.getmtime(compiled_path)),
+        )
+
+        root.title(f"Váha – rychlý přehled (kompilace: {compile_time})")
         root.geometry("520x220")
 
         self.ser = None
@@ -91,7 +99,11 @@ class App:
                         self.root.after(0, self.consume_and_update)
                 else:
                     time.sleep(0.01)  # lehké uspání, ať to nežere CPU
-            except:
+            except serial.SerialException as exc:
+                # Plánuj zpracování na hlavní thread, kde je bezpečné manipulovat s GUI
+                self.root.after(0, lambda e=exc: self.handle_serial_error(e))
+                break
+            except Exception:
                 time.sleep(0.02)
 
     # --- vezmi buffer, naparsuj a update GUI (při každém příjmu dat) ---
@@ -152,6 +164,16 @@ class App:
             self.v_uw.set(self.last_uw)
             self.v_pcs.set(self.last_pcs)
 
+    def handle_serial_error(self, exc: Exception):
+        if not self.running:
+            return
+
+        self.running = False
+        self.status.set("Status: chyba komunikace")
+        self.portinfo.set("Port: -")
+        messagebox.showerror("Chyba komunikace", f"Nastala chyba při čtení z portu.\n\n{exc}")
+        self.disconnect()
+
     def connect(self):
         if self.ser:
             return
@@ -194,20 +216,27 @@ class App:
         # 1) zastavit thread
         self.running = False
 
-        # 2) počkat na thread (krátce)
+        # 2) pokud běží, přeruš čtení a počkej na ukončení
+        ser_obj = self.ser
+        if ser_obj:
+            try:
+                ser_obj.cancel_read()
+            except Exception:
+                pass
+
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=1.0)
 
         # 3) zavřít port co nejtvrději
-        if self.ser:
+        if ser_obj:
             try:
                 try:
-                    self.ser.reset_input_buffer()
-                    self.ser.reset_output_buffer()
-                except:
+                    ser_obj.reset_input_buffer()
+                    ser_obj.reset_output_buffer()
+                except Exception:
                     pass
-                self.ser.close()
-            except:
+                ser_obj.close()
+            except Exception:
                 pass
 
         # 4) uvolnit reference + GC (Windows driver někdy drží handle déle)
