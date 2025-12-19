@@ -15,6 +15,17 @@ re_nw  = re.compile(r"^N\.W\.\s*:\s*([-\d.,]+)\s*([a-zA-Z]*)\s*$")
 re_uw  = re.compile(r"^U\.W\.\s*:\s*([-\d.,]+)\s*([a-zA-Z]*)\s*$")
 re_pcs = re.compile(r"^PCS\.\s*:\s*(\d+)\s*$")
 
+
+def resolve_compile_time():
+    cached = globals().get("__cached__") or ""
+    path = cached if cached and os.path.exists(cached) else __file__
+
+    try:
+        ts = os.path.getmtime(path)
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+    except Exception:
+        return None
+
 def find_ch340():
     for p in serial.tools.list_ports.comports():
         desc = (p.description or "")
@@ -25,8 +36,12 @@ def find_ch340():
 class App:
     def __init__(self, root):
         self.root = root
+        compile_time = resolve_compile_time()
+        title = "Váha – rychlý přehled"
+        if compile_time:
+            title = f"{title} – kompilace: {compile_time}"
 
-        root.title("Váha – rychlý přehled")
+        root.title(title)
         root.geometry("520x220")
 
         self.ser = None
