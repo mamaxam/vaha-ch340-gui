@@ -27,12 +27,19 @@ class App:
     def __init__(self, root):
         self.root = root
 
-        cached_path = globals().get("__cached__") or importlib.util.cache_from_source(__file__)
-        compiled_path = cached_path if cached_path and os.path.exists(cached_path) else __file__
-        compile_time = time.strftime(
-            "%Y-%m-%d %H:%M:%S",
-            time.localtime(os.path.getmtime(compiled_path)),
-        )
+        def resolve_compile_time():
+            cached_path = globals().get("__cached__") or importlib.util.cache_from_source(__file__)
+            candidate = cached_path if cached_path and os.path.exists(cached_path) else __file__
+
+            try:
+                mtime = os.path.getmtime(candidate)
+            except OSError:
+                # Pokud cache neexistuje nebo se k ní nedostaneme, spolehneme se na zdroják
+                mtime = os.path.getmtime(__file__)
+
+            return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mtime))
+
+        compile_time = resolve_compile_time()
 
         root.title(f"Váha – rychlý přehled (kompilace: {compile_time})")
         root.geometry("520x220")
