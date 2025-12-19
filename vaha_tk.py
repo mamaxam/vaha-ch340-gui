@@ -97,8 +97,10 @@ class App:
                 # Plánuj zpracování na hlavní thread, kde je bezpečné manipulovat s GUI
                 self.root.after(0, lambda e=exc: self.handle_serial_error(e))
                 break
-            except Exception:
-                time.sleep(0.02)
+            except Exception as exc:
+                # Neznámé chyby už neututlávejme – převeďme je na viditelnou chybu
+                self.root.after(0, lambda e=exc: self.handle_serial_error(e))
+                break
 
     # --- vezmi buffer, naparsuj a update GUI (při každém příjmu dat) ---
     def consume_and_update(self):
