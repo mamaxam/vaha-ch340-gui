@@ -1,6 +1,11 @@
 import os
 import tkinter as tk
 from tkinter import messagebox
+
+import os
+import tkinter as tk
+from tkinter import messagebox
+
 import serial
 import serial.tools.list_ports
 import threading
@@ -8,12 +13,24 @@ import time
 import re
 import gc
 
+
 BAUD = 9600
 
 re_no  = re.compile(r"^No\.\s*:\s*(\d+)\s*$")
 re_nw  = re.compile(r"^N\.W\.\s*:\s*([-\d.,]+)\s*([a-zA-Z]*)\s*$")
 re_uw  = re.compile(r"^U\.W\.\s*:\s*([-\d.,]+)\s*([a-zA-Z]*)\s*$")
 re_pcs = re.compile(r"^PCS\.\s*:\s*(\d+)\s*$")
+
+
+def resolve_compile_time():
+    cached = globals().get("__cached__") or ""
+    path = cached if cached and os.path.exists(cached) else __file__
+
+    try:
+        ts = os.path.getmtime(path)
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+    except Exception:
+        return None
 
 def find_ch340():
     for p in serial.tools.list_ports.comports():
@@ -25,10 +42,15 @@ def find_ch340():
 class App:
     def __init__(self, root):
         self.root = root
+        self.root = root
+        compile_time = resolve_compile_time()
+        title = "Váha – rychlý přehled"
+        if compile_time:
+            title = f"{title} – kompilace: {compile_time}"
 
-        compile_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(__file__)))
-        root.title(f"Váha – rychlý přehled (kompilace: {compile_time})")
+        root.title(title)
         root.geometry("520x220")
+
 
         self.ser = None
         self.running = False
@@ -98,8 +120,13 @@ class App:
                 # Plánuj zpracování na hlavní thread, kde je bezpečné manipulovat s GUI
                 self.root.after(0, lambda e=exc: self.handle_serial_error(e))
                 break
-            except Exception:
-                time.sleep(0.02)
+            except serial.SerialException as exc:
+                self.root.after(0, lambda e=exc: self.handle_serial_error(e))
+                break
+            except Exception as exc:
+                self.root.after(0, lambda e=exc: self.handle_serial_error(e))
+                break
+
 
     # --- vezmi buffer, naparsuj a update GUI (při každém příjmu dat) ---
     def consume_and_update(self):
@@ -211,20 +238,27 @@ class App:
         # 1) zastavit thread
         self.running = False
 
-        # 2) počkat na thread (krátce)
+        # 2) pokud běží, přeruš čtení a počkej na ukončení
+        ser_obj = self.ser
+        if ser_obj:
+            try:
+                ser_obj.cancel_read()
+            except Exception:
+                pass
+
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=1.0)
 
         # 3) zavřít port co nejtvrději
-        if self.ser:
+        if ser_obj:
             try:
                 try:
-                    self.ser.reset_input_buffer()
-                    self.ser.reset_output_buffer()
-                except:
+                    ser_obj.reset_input_buffer()
+                    ser_obj.reset_output_buffer()
+                except Exception:
                     pass
-                self.ser.close()
-            except:
+                ser_obj.close()
+            except Exception:
                 pass
 
         # 4) uvolnit reference + GC (Windows driver někdy drží handle déle)
