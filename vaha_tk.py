@@ -7,6 +7,7 @@ import threading
 import time
 import re
 import gc
+import importlib.util
 
 BAUD = 9600
 
@@ -26,7 +27,8 @@ class App:
     def __init__(self, root):
         self.root = root
 
-        compiled_path = globals().get("__cached__") or __file__
+        cached_path = globals().get("__cached__") or importlib.util.cache_from_source(__file__)
+        compiled_path = cached_path if cached_path and os.path.exists(cached_path) else __file__
         compile_time = time.strftime(
             "%Y-%m-%d %H:%M:%S",
             time.localtime(os.path.getmtime(compiled_path)),
