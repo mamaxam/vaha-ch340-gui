@@ -1,12 +1,18 @@
 import os
 import tkinter as tk
 from tkinter import messagebox
+
+import os
+import tkinter as tk
+from tkinter import messagebox
+
 import serial
 import serial.tools.list_ports
 import threading
 import time
 import re
 import gc
+
 
 BAUD = 9600
 
@@ -36,6 +42,7 @@ def find_ch340():
 class App:
     def __init__(self, root):
         self.root = root
+        self.root = root
         compile_time = resolve_compile_time()
         title = "Váha – rychlý přehled"
         if compile_time:
@@ -43,6 +50,7 @@ class App:
 
         root.title(title)
         root.geometry("520x220")
+
 
         self.ser = None
         self.running = False
@@ -112,10 +120,13 @@ class App:
                 # Plánuj zpracování na hlavní thread, kde je bezpečné manipulovat s GUI
                 self.root.after(0, lambda e=exc: self.handle_serial_error(e))
                 break
-            except Exception as exc:
-                # Neznámé chyby už neututlávejme – převeďme je na viditelnou chybu
+            except serial.SerialException as exc:
                 self.root.after(0, lambda e=exc: self.handle_serial_error(e))
                 break
+            except Exception as exc:
+                self.root.after(0, lambda e=exc: self.handle_serial_error(e))
+                break
+
 
     # --- vezmi buffer, naparsuj a update GUI (při každém příjmu dat) ---
     def consume_and_update(self):
